@@ -141,9 +141,9 @@ As far as I can tell Numba does give you a reasonable mapping, but you can't ass
 In order to profile, additional info needs to be added during compilation; specifically, the `NUMBA_DEBUGINFO` env variable is set.
 This might change runtime characteristics slightly, because it increases the memory size of the compiled code.
 
-### 3. Compiled code is impacted by CPU effects that aren't visible in profiling
+### 3. Compiled code is impacted by CPU effects that aren't obvious from profiling results
 
-Instruction-level parallelism, branch mispredictions, SIMD, and the CPU memory caches all have a significant impact on runtime performance, but they don't show up in profiling.
+Instruction-level parallelism, branch mispredictions, SIMD, and the CPU memory caches all have a significant impact on runtime performance, but the profiling result doesn't always make it clear that's the problem.
 [I'm writing a book about this if you want to learn more](https://pythonspeed.com/products/lowlevelcode/).
 
 ## Changelog
