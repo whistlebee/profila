@@ -29,7 +29,7 @@ class ProfilaMagics(Magics):
     IPython/Jupyter magics.
     """
 
-    @cell_magic  # type: ignore[misc]
+    @cell_magic
     def profila(self, line: str, cell: str) -> None:
         """Run the cell under a profiler."""
         del line
@@ -62,7 +62,7 @@ class ProfilaMagics(Magics):
 
         # Run the code:
         assert self.shell is not None
-        self.shell.run_cell(cell)
+        self.shell.run_cell(cell)  # type: ignore[no-untyped-call]
 
         # Tell the subprocess it can exit:
         profiler.stdin.close()
