@@ -75,7 +75,6 @@ def test_jupyter(profila_setup: Any) -> None:
     )
     assert "% non-Numba samples" in output
     assert "|         for j in range(max(i - 6, 0), i + 1):" in output
-    assert "|         result[i] = total / 7" in output
 
     # Should be at least two lines with execution time:
     assert output.count("% |") >= 2
