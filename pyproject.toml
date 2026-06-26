@@ -2,7 +2,7 @@
 name = "profila"
 description = "A profiler for Numba"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{name = "Itamar Turner-Trauring"}]
 license = {text = "Apache-2.0"}
 classifiers = [
