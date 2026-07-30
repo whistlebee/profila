@@ -2,8 +2,8 @@
 # name: test_render_text
   '''
   📊 **PROFILA EXECUTION BREAKDOWN**
-  • 🎯 **User Code / JIT Execution:** 75.0%
-  • ⚙️ **Numba Overhead / Compilation:** 0.0%
+  • 🎯 **JIT Steady-State Execution:** 70.0%
+  • ⚙️ **JIT Compilation & Lowering:** 5.0%
   • 🌐 **Non-Numba / External:** 15.1%
   • ⚠️ **Bad / Unparsed Samples:** 9.9%
   • ⏱️ **Total Samples Gathered:** 1,000

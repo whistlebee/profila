@@ -16,6 +16,8 @@ def test_render_text(snapshot: SnapshotAssertion) -> None:
         total_samples=1000,
         percent_bad_samples=9.9,
         percent_other_samples=15.1,
+        percent_compilation=5.0,
+        percent_execution=70.0,
         numba_samples={"scripts_for_tests/simple.py": {12: 35.0, 15: 40.0}},
     )
     assert render_text(final_stats) == snapshot

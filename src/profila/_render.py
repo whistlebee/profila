@@ -1,5 +1,5 @@
 """
-Render ``FinalStats`` to human-readable annotated text, clearly distinguishing User Code vs Numba Internals.
+Render ``FinalStats`` to human-readable annotated text, displaying Numba JIT Compilation vs Execution Time Split.
 """
 
 from io import StringIO
@@ -50,8 +50,8 @@ def render_text(stats: FinalStats) -> str:
             numba_internal_pct += total_file_pct
 
     result.write("📊 **PROFILA EXECUTION BREAKDOWN**\n")
-    result.write(f"• 🎯 **User Code / JIT Execution:** {user_samples_pct:.1f}%\n")
-    result.write(f"• ⚙️ **Numba Overhead / Compilation:** {numba_internal_pct:.1f}%\n")
+    result.write(f"• 🎯 **JIT Steady-State Execution:** {stats.percent_execution:.1f}%\n")
+    result.write(f"• ⚙️ **JIT Compilation & Lowering:** {stats.percent_compilation:.1f}%\n")
     result.write(f"• 🌐 **Non-Numba / External:** {stats.percent_other_samples:.1f}%\n")
     if stats.percent_bad_samples > 0:
         result.write(f"• ⚠️ **Bad / Unparsed Samples:** {stats.percent_bad_samples:.1f}%\n")

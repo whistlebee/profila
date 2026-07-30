@@ -28,14 +28,14 @@ def matrix_multiply(A, B):
     return C
 
 
-@njit
+@njit(fastmath=True)
 def pairwise_distances(X):
     """Pairwise Euclidean distance matrix between N points in D dimensions."""
     N, D = X.shape
     dist = np.zeros((N, N), dtype=float64)
     for i in range(N):
         for j in range(i + 1, N):
-            # Compute squared Euclidean distance
+            # Compute squared Euclidean distance with SIMD vectorization
             d_sq = 0.0
             for k in range(D):
                 diff = X[i, k] - X[j, k]

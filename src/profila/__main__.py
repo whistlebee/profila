@@ -141,6 +141,60 @@ MEMORY_PARSER.add_argument(
 )
 MEMORY_PARSER.set_defaults(command="memory")
 
+VTUNE_PARSER = SUBPARSERS.add_parser(
+    "vtune",
+    help="Profile script and launch Profila VTune Edition viewer.",
+)
+VTUNE_PARSER.add_argument(
+    "-o", "--output",
+    default="profile.speedscope.json",
+    help="Output Speedscope profile path.",
+)
+VTUNE_PARSER.add_argument(
+    "--frequency",
+    type=float,
+    default=1000.0,
+    help="Sampling frequency in Hz (default: 1000 Hz).",
+)
+VTUNE_PARSER.add_argument(
+    "rest",
+    nargs=REMAINDER,
+    help="The arguments you'd usually pass to the Python command-line.",
+)
+VTUNE_PARSER.set_defaults(command="vtune")
+
+ANALYZE_PARSER = SUBPARSERS.add_parser(
+    "analyze",
+    help="Analyze Numba functions and output VTune-style optimization suggestions.",
+)
+ANALYZE_PARSER.add_argument(
+    "rest",
+    nargs=REMAINDER,
+    help="The Python script to analyze.",
+)
+ANALYZE_PARSER.set_defaults(command="analyze")
+
+LLVM_PARSER = SUBPARSERS.add_parser(
+    "llvm",
+    help="Inspect LLVM IR and SIMD vectorization status for compiled Numba functions.",
+)
+LLVM_PARSER.add_argument(
+    "--full",
+    action="store_true",
+    help="Print full LLVM IR assembly text.",
+)
+LLVM_PARSER.add_argument(
+    "--filter",
+    default="",
+    help="Filter functions by name.",
+)
+LLVM_PARSER.add_argument(
+    "rest",
+    nargs=REMAINDER,
+    help="The Python script to execute and inspect.",
+)
+LLVM_PARSER.set_defaults(command="llvm")
+
 
 def annotate_command(args: Namespace) -> None:
     """
@@ -269,6 +323,53 @@ def memory_command(args: Namespace) -> None:
     annotate_command(args)
 
 
+def vtune_command(args: Namespace) -> None:
+    args.format = "speedscope"
+    args.mode = "time"
+    annotate_command(args)
+    vtune_app = os.path.abspath("speedscope-profila/dist/release/index.html")
+    if os.path.exists(vtune_app):
+        print(f"\n⚡ Profila VTune Edition ready! Open in browser/Helium:\n   file://{vtune_app}")
+
+
+def analyze_command(args: Namespace) -> None:
+    from ._advisor import NumbaOptimizationAdvisor, render_advisor_report
+
+    rest = list(args.rest)
+    if rest and rest[0] == "--":
+        del rest[0]
+
+    target = rest[0] if rest else ""
+    if not target or not os.path.exists(target):
+        print("Error: Target Python script file not found.")
+        sys.exit(1)
+
+    advisor = NumbaOptimizationAdvisor()
+    suggestions = advisor.analyze_file(target)
+    print(render_advisor_report(suggestions))
+
+
+def llvm_command(args: Namespace) -> None:
+    from ._llvm import extract_numba_llvm, render_llvm_report
+
+    rest = list(args.rest)
+    if rest and rest[0] == "--":
+        del rest[0]
+
+    if not rest:
+        print("Error: Target Python script not provided.")
+        sys.exit(1)
+
+    os.environ["NUMBA_DEBUGINFO"] = "1"
+    target = rest[0]
+    sys.argv = rest
+
+    res_module = runpy.run_path(target, run_name="__main__")
+
+    results = extract_numba_llvm(res_module, function_filter=getattr(args, "filter", ""))
+    print(render_llvm_report(results, show_full_ir=getattr(args, "full", False)))
+
+
 def main() -> None:
     args = PARSER.parse_args()
     cmd = getattr(args, "command", None)
@@ -282,6 +383,12 @@ def main() -> None:
         speedscope_command(args)
     elif cmd == "memory":
         memory_command(args)
+    elif cmd == "vtune":
+        vtune_command(args)
+    elif cmd == "analyze":
+        analyze_command(args)
+    elif cmd == "llvm":
+        llvm_command(args)
     else:
         PARSER.print_help()
 

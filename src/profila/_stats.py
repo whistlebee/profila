@@ -1,17 +1,28 @@
 """
-Aggregate call stacks.
+Aggregate call stacks and track JIT compilation vs execution time splits.
 """
 
 import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
+
+COMPILATION_FRAME_KEYWORDS = (
+    "compiler.py",
+    "typeinfer.py",
+    "lowering.py",
+    "codegen.py",
+    "dispatcher.py",
+    "serialize.py",
+    "ffi.py",
+)
+
+
 @dataclass(frozen=True)
 class Frame:
     file: str
     line: int
     name: str = ""
-
 
 
 @dataclass(frozen=True)
@@ -23,6 +34,8 @@ class FinalStats:
     total_samples: int
     percent_bad_samples: float
     percent_other_samples: float
+    percent_compilation: float
+    percent_execution: float
     # Map path to mapping of line number to percentage.
     numba_samples: dict[str, dict[int, float]]
 
@@ -51,6 +64,10 @@ class Stats:
     bad_samples: int = 0
     # Samples that weren't Numba based:
     other_samples: int = 0
+    # Numba compilation & JIT lowering samples:
+    compilation_samples: int = 0
+    # Numba steady-state JIT execution samples:
+    execution_samples: int = 0
 
     def total_samples(self) -> int:
         """
@@ -63,13 +80,23 @@ class Stats:
 
     def add_sample(self, sample: Optional[list[Frame]]) -> None:
         """
-        Add a sample.
+        Add a sample and classify compilation vs execution.
         """
         if sample is None:
             self.bad_samples += 1
             return
 
         self.stack_counts[tuple(sample)] += 1
+
+        is_compilation = any(
+            any(kw in f.file for kw in COMPILATION_FRAME_KEYWORDS)
+            for f in sample
+        )
+
+        if is_compilation:
+            self.compilation_samples += 1
+        else:
+            self.execution_samples += 1
 
         for frame in sample:
             if frame.file.endswith(".py"):
@@ -111,6 +138,9 @@ class Stats:
 
         percent_bad_samples = to_percent(self.bad_samples)
         percent_other_samples = to_percent(self.other_samples)
+        percent_compilation = to_percent(self.compilation_samples)
+        percent_execution = to_percent(self.execution_samples)
+
         numba_samples = {}
         for filename, counts in self.path_to_line_counts.items():
             filename_counts: dict[int, float] = {}
@@ -122,6 +152,8 @@ class Stats:
             total_samples=total_samples,
             percent_bad_samples=percent_bad_samples,
             percent_other_samples=percent_other_samples,
+            percent_compilation=percent_compilation,
+            percent_execution=percent_execution,
             numba_samples=numba_samples,
         )
         assert -5.0 < final_stats.total_percent() - 100 < 5.0
