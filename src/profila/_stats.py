@@ -2,10 +2,16 @@
 Aggregate call stacks.
 """
 
+import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
-from ._gdb import Frame
+@dataclass(frozen=True)
+class Frame:
+    file: str
+    line: int
+    name: str = ""
+
 
 
 @dataclass(frozen=True)
@@ -39,6 +45,8 @@ class Stats:
     path_to_line_counts: defaultdict[str, Counter[int]] = field(
         default_factory=lambda: defaultdict(Counter)
     )
+    # Full stack trace samples count (tuple of Frame)
+    stack_counts: Counter[tuple[Frame, ...]] = field(default_factory=Counter)
     # Samples we couldn't parse:
     bad_samples: int = 0
     # Samples that weren't Numba based:
@@ -61,12 +69,34 @@ class Stats:
             self.bad_samples += 1
             return
 
+        self.stack_counts[tuple(sample)] += 1
+
         for frame in sample:
             if frame.file.endswith(".py"):
                 self.path_to_line_counts[frame.file][frame.line] += 1
                 return
 
         self.other_samples += 1
+
+    def to_folded_stacks(self) -> str:
+        """
+        Generate folded stack strings (compatible with FlameGraph generators).
+        Each line format: frame1;frame2;frame3 count
+        """
+        lines = []
+        if self.bad_samples > 0:
+            lines.append(f"[bad_sample] {self.bad_samples}")
+        if self.other_samples > 0:
+            lines.append(f"[non_numba] {self.other_samples}")
+
+        for stack, count in self.stack_counts.items():
+            frame_strs = [
+                f"{f.name} ({os.path.basename(f.file)}:{f.line})" if f.name else f"{os.path.basename(f.file)}:{f.line}"
+                for f in stack
+            ]
+            lines.append(f"{';'.join(frame_strs)} {count}")
+
+        return "\n".join(lines)
 
     def finalize(self) -> FinalStats:
         """

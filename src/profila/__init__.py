@@ -23,14 +23,6 @@ def load_ipython_extension(ipython: object) -> None:
             "Docker/Podman/WSL2."
         )
 
-    from ._gdb import GDB_PATH
-
-    if not os.path.exists(GDB_PATH):
-        raise UsageError(
-            "Profila's custom gdb not found, make sure it is installed by running "
-            "'python -m profila setup'."
-        )
-
     os.environ["NUMBA_DEBUGINFO"] = "1"
 
     from ._ipython import ProfilaMagics

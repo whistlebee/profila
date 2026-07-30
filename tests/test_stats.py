@@ -5,8 +5,7 @@ Tests for ``profila._stats``.
 from typing import Optional
 from hypothesis import given, strategies as st
 
-from profila._stats import Stats
-from profila._gdb import Frame
+from profila._stats import Stats, Frame
 
 import pytest
 

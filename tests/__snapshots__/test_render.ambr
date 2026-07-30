@@ -1,9 +1,18 @@
 # serializer version: 1
 # name: test_render_text
   '''
-  **Total samples:** 1000 (15.1% non-Numba samples, 9.9% bad samples)
+  📊 **PROFILA EXECUTION BREAKDOWN**
+  • 🎯 **User Code / JIT Execution:** 75.0%
+  • ⚙️ **Numba Overhead / Compilation:** 0.0%
+  • 🌐 **Non-Numba / External:** 15.1%
+  • ⚠️ **Bad / Unparsed Samples:** 9.9%
+  • ⏱️ **Total Samples Gathered:** 1,000
   
-  scripts_for_tests/simple.py (lines 12 to 15):
+  ========================================================
+  🎯 **USER CODE ANNOTATIONS**
+  ========================================================
+  
+  File `scripts_for_tests/simple.py` (lines 12 to 15):
   
   ```
    35.0% |         result[i] = (7 + timeseries[i] / 9 + (timeseries[i] ** 2) / 7) / 5
