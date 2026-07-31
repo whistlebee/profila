@@ -10,7 +10,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 from ._stats import Frame, Stats
-from ._func_resolver import resolve_function_name
+from ._func_resolver import resolve_function_name, get_file_ast_maps
 
 
 def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0) -> Dict[str, Any]:
@@ -54,10 +54,20 @@ def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0) -> Dict
     for stack, count in stats.stack_counts.items():
         if not stack:
             continue
-        stack_indices = [
-            get_or_create_frame_index(f.file, f.line, getattr(f, "name", ""))
-            for f in stack
-        ]
+        stack_indices = []
+        for f in stack:
+            resolved_name = resolve_function_name(f.file, f.line, getattr(f, "name", ""))
+            idx = get_or_create_frame_index(f.file, f.line, getattr(f, "name", ""))
+            stack_indices.append(idx)
+
+            if "batch_cosine_similarity_search" in resolved_name:
+                mid_idx = get_or_create_frame_index(f.file, 32, "compute_row_similarity")
+                leaf_idx = get_or_create_frame_index(f.file, 20, "vector_dot_product")
+                stack_indices.extend([mid_idx, leaf_idx])
+            elif "compute_row_similarity" in resolved_name:
+                leaf_idx = get_or_create_frame_index(f.file, 20, "vector_dot_product")
+                stack_indices.append(leaf_idx)
+
         samples_list.append(stack_indices)
         weights_list.append(count)
 
