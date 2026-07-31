@@ -12,7 +12,7 @@ import numpy as np
 from numba import njit, prange
 
 
-@njit(fastmath=True)
+@njit(inline='never', fastmath=True)
 def vector_dot_product(u, v):
     """Leaf JIT kernel: computes dot product of two 1D vectors with SIMD vectorization."""
     s = 0.0
@@ -21,7 +21,7 @@ def vector_dot_product(u, v):
     return s
 
 
-@njit(fastmath=True)
+@njit(inline='never', fastmath=True)
 def compute_row_similarity(matrix, row_idx, target_vec):
     """Mid-level JIT function: calls leaf JIT kernel vector_dot_product."""
     row = matrix[row_idx]
@@ -33,7 +33,7 @@ def compute_row_similarity(matrix, row_idx, target_vec):
     return 0.0
 
 
-@njit(fastmath=True, parallel=True)
+@njit(inline='never', fastmath=True, parallel=True)
 def batch_cosine_similarity_search(matrix, query_vec):
     """Top-level JIT function: calls mid-level JIT function compute_row_similarity in parallel."""
     n_rows = matrix.shape[0]
