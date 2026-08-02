@@ -20,17 +20,15 @@ def main():
 
     print("Starting EVOC Numba profiling workload loop...")
     start_time = time.time()
-    
-    # Run EVOC cluster layers
-    layers = build_cluster_layers(data, base_min_cluster_size=15)
-    print(f"EVOC Cluster Layers computed: {len(layers)} layers")
+    iterations = 0
 
-    # Run KNN Graph construction (Numba NN-descent)
-    knn_indices, knn_dists = knn_graph(data, n_neighbors=15)
-    print(f"EVOC k-NN Graph generated: shape {knn_indices.shape}")
+    while time.time() - start_time < 3.5:
+        layers = build_cluster_layers(data, base_min_cluster_size=15)
+        knn_indices, knn_dists = knn_graph(data, n_neighbors=15)
+        iterations += 1
 
     elapsed = time.time() - start_time
-    print(f"EVOC Workload completed in {elapsed:.2f} seconds.")
+    print(f"EVOC Workload completed {iterations} iterations in {elapsed:.2f} seconds.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """
 Numba Optimization Advisor for Profila.
 
-Analyzes profiled Numba functions and generates VTune-style optimization recommendations.
+Analyzes profiled Numba functions and generates Profila optimization recommendations.
 """
 
 import ast

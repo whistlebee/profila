@@ -13,7 +13,75 @@ from ._stats import Frame, Stats
 from ._func_resolver import resolve_function_name, get_file_ast_maps
 
 
-def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0) -> Dict[str, Any]:
+def extract_llvm_map(target_globals: Dict[str, Any] = None) -> Dict[str, Any]:
+    llvm_map = {}
+    try:
+        import sys
+        from numba.core.dispatcher import Dispatcher
+        from ._llvm import analyze_llvm_ir
+
+        candidates = []
+        if target_globals and isinstance(target_globals, dict):
+            for k, v in target_globals.items():
+                candidates.append((k, v))
+
+        for mod_name, mod in list(sys.modules.items()):
+            if not mod or mod_name.startswith('_'):
+                continue
+            for attr in dir(mod):
+                try:
+                    obj = getattr(mod, attr)
+                    if isinstance(obj, Dispatcher):
+                        candidates.append((attr, obj))
+                    elif hasattr(obj, '__module__') and getattr(obj, '__module__', '').startswith('evoc'):
+                        for sub_attr in dir(obj):
+                            try:
+                                sub_obj = getattr(obj, sub_attr)
+                                if isinstance(sub_obj, Dispatcher):
+                                    candidates.append((sub_attr, sub_obj))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+        for name, obj in candidates:
+            if isinstance(obj, Dispatcher):
+                for sig, cres in list(getattr(obj, 'overloads', {}).items()):
+                    ir_text = ''
+                    if hasattr(cres, 'library') and hasattr(cres.library, 'get_llvm_str'):
+                        try:
+                            ir_text = cres.library.get_llvm_str()
+                        except Exception:
+                            pass
+                    if not ir_text or len(ir_text) < 300:
+                        try:
+                            llvm_dict = obj.inspect_llvm()
+                            ir_text = list(llvm_dict.values())[0] if llvm_dict else ''
+                        except Exception:
+                            pass
+                    if ir_text and len(ir_text) >= 300 and ("define " in ir_text or "<" in ir_text):
+                        analysis = analyze_llvm_ir(name, str(sig), ir_text)
+                        item = {
+                            'llvm_ir': ir_text,
+                            'total_instructions': analysis.total_llvm_instructions,
+                            'simd_instructions': analysis.simd_instructions,
+                            'simd_vectorized': analysis.simd_vectorized,
+                            'memory_allocations': analysis.memory_allocations,
+                        }
+                        llvm_map[name] = item
+
+                        # Extract synthetic sub-functions (__numba_parfor_gufunc, __numba_array_expr, etc.)
+                        import re
+                        for match in re.finditer(r'define\s+[^@]*@"?(__numba_[a-zA-Z0-9_]+)"?', ir_text):
+                            synth_name = match.group(1)
+                            if synth_name not in llvm_map:
+                                llvm_map[synth_name] = item
+    except Exception:
+        pass
+    return llvm_map
+
+
+def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0, target_globals: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     Converts Stats into Speedscope JSON format.
     """
@@ -72,11 +140,13 @@ def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0) -> Dict
         weights_list.append(count)
 
     total_weight = sum(weights_list)
+    llvm_map = extract_llvm_map(target_globals)
 
     return {
         "$schema": "https://www.speedscope.app/file-format-schema.json",
         "shared": {
             "frames": frames,
+            "llvm_map": llvm_map,
         },
         "profiles": [
             {
@@ -93,9 +163,9 @@ def stats_to_speedscope(stats: Stats, sampling_interval_ms: float = 1.0) -> Dict
     }
 
 
-def generate_speedscope_json(stats: Stats) -> str:
+def generate_speedscope_json(stats: Stats, target_globals: Dict[str, Any] = None) -> str:
     """
     Returns formatted Speedscope JSON string.
     """
-    profile = stats_to_speedscope(stats)
+    profile = stats_to_speedscope(stats, target_globals=target_globals)
     return json.dumps(profile, indent=2)

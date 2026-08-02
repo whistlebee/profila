@@ -15,6 +15,17 @@ from ._cpuprofile import generate_cpuprofile_json
 from ._speedscope import generate_speedscope_json
 from ._memory import MemoryProfiler, render_memory_text
 
+# Bypass Numba disk cache & silence internal Numba debug info warnings during profiling
+try:
+    import warnings
+    import numba.core.dispatcher
+    from numba.core.errors import NumbaDebugInfoWarning
+    warnings.filterwarnings("ignore", category=NumbaDebugInfoWarning)
+    warnings.filterwarnings("ignore", message=".*Inspection disabled for cached code.*")
+    numba.core.dispatcher.Dispatcher.enable_caching = lambda self: None
+except Exception:
+    pass
+
 PARSER = ArgumentParser(prog="profila", description="A profiler for Numba using direct LLVM DWARF unwinding.")
 SUBPARSERS = PARSER.add_subparsers()
 
@@ -54,6 +65,12 @@ ANNOTATE_PARSER.add_argument(
     help="Sampling frequency in Hz (default: 1000 Hz / 1ms).",
 )
 ANNOTATE_PARSER.add_argument(
+    "--disable-cache", "--no-cache", "--disable-numba-cache",
+    dest="disable_cache",
+    action="store_true",
+    help="Disable Numba disk caching during profiling to capture live LLVM IR.",
+)
+ANNOTATE_PARSER.add_argument(
     "rest",
     nargs=REMAINDER,
     help="The arguments you'd usually pass to the Python command-line.",
@@ -74,6 +91,12 @@ FLAMEGRAPH_PARSER.add_argument(
     type=float,
     default=1000.0,
     help="Sampling frequency in Hz (default: 1000 Hz).",
+)
+FLAMEGRAPH_PARSER.add_argument(
+    "--disable-cache", "--no-cache", "--disable-numba-cache",
+    dest="disable_cache",
+    action="store_true",
+    help="Disable Numba disk caching during profiling to capture live LLVM IR.",
 )
 FLAMEGRAPH_PARSER.add_argument(
     "rest",
@@ -98,6 +121,12 @@ CPUPROFILE_PARSER.add_argument(
     help="Sampling frequency in Hz (default: 1000 Hz).",
 )
 CPUPROFILE_PARSER.add_argument(
+    "--disable-cache", "--no-cache", "--disable-numba-cache",
+    dest="disable_cache",
+    action="store_true",
+    help="Disable Numba disk caching during profiling to capture live LLVM IR.",
+)
+CPUPROFILE_PARSER.add_argument(
     "rest",
     nargs=REMAINDER,
     help="The arguments you'd usually pass to the Python command-line.",
@@ -118,6 +147,12 @@ SPEEDSCOPE_PARSER.add_argument(
     type=float,
     default=1000.0,
     help="Sampling frequency in Hz (default: 1000 Hz).",
+)
+SPEEDSCOPE_PARSER.add_argument(
+    "--disable-cache", "--no-cache", "--disable-numba-cache",
+    dest="disable_cache",
+    action="store_true",
+    help="Disable Numba disk caching during profiling to capture live LLVM IR.",
 )
 SPEEDSCOPE_PARSER.add_argument(
     "rest",
@@ -141,31 +176,38 @@ MEMORY_PARSER.add_argument(
 )
 MEMORY_PARSER.set_defaults(command="memory")
 
-VTUNE_PARSER = SUBPARSERS.add_parser(
-    "vtune",
-    help="Profile script and launch Profila VTune Edition viewer.",
+VIEWER_PARSER = SUBPARSERS.add_parser(
+    "viewer",
+    aliases=["web", "vtune"],
+    help="Profile script and launch Profila Web Viewer.",
 )
-VTUNE_PARSER.add_argument(
+VIEWER_PARSER.add_argument(
     "-o", "--output",
     default="profile.speedscope.json",
     help="Output Speedscope profile path.",
 )
-VTUNE_PARSER.add_argument(
+VIEWER_PARSER.add_argument(
     "--frequency",
     type=float,
     default=1000.0,
     help="Sampling frequency in Hz (default: 1000 Hz).",
 )
-VTUNE_PARSER.add_argument(
+VIEWER_PARSER.add_argument(
+    "--disable-cache", "--no-cache", "--disable-numba-cache",
+    dest="disable_cache",
+    action="store_true",
+    help="Disable Numba disk caching during profiling to capture live LLVM IR.",
+)
+VIEWER_PARSER.add_argument(
     "rest",
     nargs=REMAINDER,
     help="The arguments you'd usually pass to the Python command-line.",
 )
-VTUNE_PARSER.set_defaults(command="vtune")
+VIEWER_PARSER.set_defaults(command="viewer")
 
 ANALYZE_PARSER = SUBPARSERS.add_parser(
     "analyze",
-    help="Analyze Numba functions and output VTune-style optimization suggestions.",
+    help="Analyze Numba functions and output Profila optimization suggestions.",
 )
 ANALYZE_PARSER.add_argument(
     "rest",
@@ -254,13 +296,16 @@ def annotate_command(args: Namespace) -> None:
         sampler = Sampler(interval_seconds=interval)
         sampler.start()
 
+        res_globals = {}
         try:
             if is_module:
-                runpy.run_module(target, run_name="__main__", alter_sys=True)
+                res_globals = runpy.run_module(target, run_name="__main__", alter_sys=True)
             elif is_code:
-                exec(target, {"__name__": "__main__"})
+                g = {"__name__": "__main__"}
+                exec(target, g)
+                res_globals = g
             else:
-                runpy.run_path(target, run_name="__main__")
+                res_globals = runpy.run_path(target, run_name="__main__")
         finally:
             stats = sampler.stop()
 
@@ -272,7 +317,7 @@ def annotate_command(args: Namespace) -> None:
         elif out_format == "cpuprofile":
             output_content = generate_cpuprofile_json(stats)
         elif out_format == "speedscope":
-            output_content = generate_speedscope_json(stats)
+            output_content = generate_speedscope_json(stats, target_globals=res_globals)
         else:
             final_stats = stats.finalize()
             output_content = render_text(final_stats)
@@ -282,6 +327,9 @@ def annotate_command(args: Namespace) -> None:
         with open(out_file, "w", encoding="utf-8") as f:
             f.write(output_content)
         print(f"Profiling results written to {out_file}")
+        if getattr(args, "format", "text") == "speedscope" and out_file != "profile.speedscope.json":
+            with open("profile.speedscope.json", "w", encoding="utf-8") as f:
+                f.write(output_content)
     else:
         if mode == "time" and getattr(args, "format", "text") == "flamegraph":
             with open("flamegraph.html", "w", encoding="utf-8") as f:
@@ -323,13 +371,17 @@ def memory_command(args: Namespace) -> None:
     annotate_command(args)
 
 
-def vtune_command(args: Namespace) -> None:
+def viewer_command(args: Namespace) -> None:
     args.format = "speedscope"
     args.mode = "time"
     annotate_command(args)
-    vtune_app = os.path.abspath("speedscope-profila/dist/release/index.html")
-    if os.path.exists(vtune_app):
-        print(f"\n⚡ Profila VTune Edition ready! Open in browser/Helium:\n   file://{vtune_app}")
+    viewer_app = os.path.abspath("speedscope-profila/dist/release/index.html")
+    out_file = getattr(args, "output", "profile.speedscope.json") or "profile.speedscope.json"
+    abs_out = os.path.abspath(out_file)
+    import time
+    ts = int(time.time())
+    if os.path.exists(viewer_app):
+        print(f"\n⚡ Profila Web Viewer ready! Open in browser/Helium:\n   file://{viewer_app}?t={ts}#localProfileURL=file://{abs_out}")
 
 
 def analyze_command(args: Namespace) -> None:
@@ -383,8 +435,8 @@ def main() -> None:
         speedscope_command(args)
     elif cmd == "memory":
         memory_command(args)
-    elif cmd == "vtune":
-        vtune_command(args)
+    elif cmd in ("viewer", "web", "vtune"):
+        viewer_command(args)
     elif cmd == "analyze":
         analyze_command(args)
     elif cmd == "llvm":

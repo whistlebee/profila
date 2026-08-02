@@ -13,5 +13,6 @@ build
 .hypothesis
 *.cpuprofile
 *.speedscope.json
+*-profile.json
 *.html
 evoc/
